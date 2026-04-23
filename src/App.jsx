@@ -1,80 +1,83 @@
 import { useState } from 'react'
 
-function App() {
-  // Estado para controlar el paso del flujo
-  const [step, setStep] = useState(1);
+// --- 1. LAS DEFINICIONES (Afuera, como inventario) ---
+const PARTIDOS_HIDALGO = [
+  { id: 'guinda', nombre: 'Partido Guinda', color: '#8d1c3d' },
+  { id: 'azul', nombre: 'Partido Azul', color: '#005596' },
+  { id: 'tricolor', nombre: 'Partido Tricolor', color: '#00955d' },
+  { id: 'naranja', nombre: 'Movimiento Naranja', color: '#ff8200' },
+];
 
+function App() {
+  // --- 2. EL CEREBRO (Adentro, controla qué se ve) ---
+  const [paso, setPaso] = useState(1);
+  const [eleccion, setEleccion] = useState(null);
+  const [cp, setCp] = useState('');
+
+  // Función para guardar el voto y pasar al paso 2
+  const manejarVoto = (partidoId) => {
+    setEleccion(partidoId);
+    setPaso(2);
+  };
+
+  // --- 3. EL ESCAPARATE (El return con la vista de todo) ---
   return (
-    <div style={{ 
-      backgroundColor: '#F3F4F6', // Gris elegante de fondo
-      minHeight: '100vh', 
-      fontFamily: 'Inter, sans-serif',
-      color: '#1F2937', // Gris carbón para textos
-      padding: '20px'
-    }}>
-      {/* Header Institucional */}
+    <div style={{ backgroundColor: '#F3F4F6', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' }}>
+      
       <header style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
-          Quetza <span style={{ fontWeight: '300', color: '#6B7280' }}>Analytics</span>
-        </h1>
-        <p style={{ color: '#6B7280', fontSize: '14px' }}>Termómetro Electoral Hidalgo 2027</p>
+        <h1 style={{ color: '#111827' }}>Quetza Analytics</h1>
       </header>
 
-      {/* Contenedor Principal (Tarjeta Blanca) */}
-      <main style={{ 
-        backgroundColor: '#FFFFFF', 
-        maxWidth: '500px', 
-        margin: '0 auto', 
-        borderRadius: '16px', 
-        padding: '30px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-      }}>
+      <main style={{ backgroundColor: 'white', maxWidth: '500px', margin: '0 auto', padding: '30px', borderRadius: '16px' }}>
         
-        {step === 1 && (
+        {/* === PANTALLA 1: LA VOTACIÓN === */}
+        {paso === 1 && (
           <section>
-            <h2 style={{ fontSize: '18px', textAlign: 'center', marginBottom: '20px' }}>
-              ¿Quién crees que gobernará el estado?
-            </h2>
-            {/* Aquí irán los botones de los partidos */}
-            <button 
-              onClick={() => setStep(2)}
-              style={{
-                width: '100%',
-                padding: '15px',
-                backgroundColor: '#F9FAFB',
-                border: '1px solid #E5E7EB',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '16px',
-                fontWeight: '500'
-              }}>
-              Simular Clic en Partido
-            </button>
+            <h2 style={{ textAlign: 'center' }}>¿Quién crees que gobernará?</h2>
+            
+            {PARTIDOS_HIDALGO.map((partido) => (
+              <button 
+                key={partido.id}
+                onClick={() => manejarVoto(partido.id)}
+                style={{
+                  width: '100%', padding: '15px', marginBottom: '10px',
+                  border: `2px solid ${partido.color}`, borderRadius: '8px',
+                  backgroundColor: 'white', cursor: 'pointer', fontWeight: 'bold'
+                }}
+              >
+                {partido.nombre}
+              </button>
+            ))}
           </section>
         )}
 
-        {step === 2 && (
+        {/* === PANTALLA 2: EL MURO DE VALIDACIÓN === */}
+        {paso === 2 && (
           <section style={{ textAlign: 'center' }}>
-            <h2 style={{ fontSize: '18px', marginBottom: '10px' }}>¡Predicción Capturada! 🎯</h2>
-            <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '20px' }}>
-              Valida tu voto para ganar 50 Quetza Coins.
-            </p>
+            <h2>¡Predicción Capturada! 🎯</h2>
+            <p>Ingresa tu Código Postal para validar tu pronóstico.</p>
+            
             <input 
-              type="number" 
-              placeholder="Tu Código Postal" 
-              style={{
-                width: '100%',
-                padding: '12px',
-                marginBottom: '20px',
-                borderRadius: '8px',
-                border: '1px solid #D1D5DB',
-                textAlign: 'center'
-              }}
+              type="text" 
+              maxLength="5"
+              placeholder="Ej. 42000"
+              value={cp}
+              onChange={(e) => setCp(e.target.value.replace(/\D/g, ""))}
+              style={{ padding: '10px', width: '80%', marginBottom: '20px', textAlign: 'center', fontSize: '18px' }}
             />
+
+            <br />
+
             <button 
-              onClick={() => setStep(1)}
-              style={{ color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer' }}>
-              ← Volver
+              disabled={cp.length !== 5}
+              onClick={() => setPaso(3)}
+              style={{
+                padding: '15px 30px', borderRadius: '8px', border: 'none',
+                backgroundColor: cp.length === 5 ? '#111827' : '#D1D5DB', // Cambia de gris a negro si es válido
+                color: 'white', cursor: cp.length === 5 ? 'pointer' : 'not-allowed'
+              }}
+            >
+              Validar Predicción
             </button>
           </section>
         )}
