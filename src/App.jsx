@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js'
 
 // --- 1. CONEXIÓN A LA BODEGA (SUPABASE) ---
@@ -21,18 +21,17 @@ function App() {
   const [paso, setPaso] = useState(1);
   const [eleccion, setEleccion] = useState(null);
   const [cp, setCp] = useState('');
-  const [guardando, setGuardando] = useState(false); // Para mostrar un "Cargando..."
+  const [guardando, setGuardando] = useState(false);
 
   const manejarVoto = (partidoId) => {
     setEleccion(partidoId);
     setPaso(2);
   };
 
-  /// --- 3. LA FUNCIÓN QUE MANDA LOS DATOS ---
+  // --- 3. LA FUNCIÓN QUE MANDA LOS DATOS ---
   const validarYGuardar = async () => {
     setGuardando(true);
     
-    // Guardamos en la tabla 'registro_votos'
     const { error } = await supabase
       .from('registro_votos')
       .insert([{ partido: eleccion, cp: cp }]);
@@ -42,9 +41,12 @@ function App() {
       console.error(error);
       setGuardando(false);
     } else {
-      // SI TODO SALE BIEN: Primero traemos los resultados nuevos
+      // SI TODO SALE BIEN: 
+      // 1. Imprimimos el sello invisible en su navegador
+      localStorage.setItem('quetza_voto_registrado', 'true');
+      
+      // 2. Traemos los resultados y cambiamos de pantalla
       await obtenerResultadosReales();
-      // Y luego pasamos a la pantalla final
       setPaso(3);
       setGuardando(false);
     }
@@ -52,7 +54,6 @@ function App() {
 
   // --- 4. LA FUNCIÓN QUE LEE LOS RESULTADOS ---
   const obtenerResultadosReales = async () => {
-    // IMPORTANTE: Usamos la misma tabla 'registro_votos'
     const { data, error } = await supabase.from('registro_votos').select('partido');
 
     if (error) {
@@ -62,13 +63,11 @@ function App() {
 
     const totalVotos = data.length;
     
-    // Contamos cuántos votos hay por cada ID de partido
     const conteo = data.reduce((acc, voto) => {
       acc[voto.partido] = (acc[voto.partido] || 0) + 1;
       return acc;
     }, {});
 
-    // Creamos la lista para las gráficas
     const calculoFinal = PARTIDOS_HIDALGO.map(partido => {
       const votosEstePartido = conteo[partido.id] || 0;
       const porcentaje = totalVotos > 0 ? ((votosEstePartido / totalVotos) * 100).toFixed(1) : 0;
@@ -79,146 +78,215 @@ function App() {
       };
     });
 
-    // Ordenamos de mayor a menor
     setResultados(calculoFinal.sort((a, b) => b.porcentaje - a.porcentaje));
   };
 
+  // --- 5. EL GUARDIÁN ANTITRAMPAS ---
+  // Ahora sí, adentro de App() y después de que la función obtenerResultadosReales existe.
+  useEffect(() => {
+    const votoPrevio = localStorage.getItem('quetza_voto_registrado');
+    
+    if (votoPrevio === 'true') {
+      setPaso(3);
+      obtenerResultadosReales(); 
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div style={{ backgroundColor: '#e2e8f0', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      
-      <nav style={{ backgroundColor: '#0f172a', padding: '15px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-        <h1 style={{ color: 'white', margin: 0, fontSize: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '24px' }}>📊</span> Quetza Analytics
-        </h1>
-        <span style={{ color: '#94a3b8', fontSize: '14px' }}>Hidalgo 2027</span>
-      </nav>
+    <div className="min-h-screen bg-slate-50 relative overflow-x-hidden font-sans text-slate-800 pb-12">
+      {/* Decoraciones de fondo globales (Blobs) */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-blue-100 rounded-full blur-[100px] -z-10 opacity-50"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[30rem] h-[30rem] bg-indigo-100 rounded-full blur-[100px] -z-10 opacity-50"></div>
 
-      <main style={{ padding: '40px 20px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '50px', maxWidth: '1200px', margin: '0 auto', alignItems: 'center', minHeight: 'calc(100vh - 70px)' }}>
-        
-        {/* COLUMNA IZQUIERDA (Texto intacto) */}
-        <div style={{ flex: '1 1 400px', padding: '20px' }}>
-          <div style={{ display: 'inline-block', backgroundColor: '#e0e7ff', color: '#4f46e5', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Rumbo al 2027
+      {/* HEADER / BARRA SUPERIOR FLOTANTE ESTILO CRISTAL */}
+      <header className="sticky top-0 z-50 w-full bg-white/70 backdrop-blur-md border-b border-white/20 shadow-sm">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg shadow-md flex items-center justify-center text-white font-bold text-xl">
+              Q
+            </div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">
+              Quetza <span className="text-blue-600 font-light">Analytics</span>
+            </h1>
           </div>
-          <h2 style={{ fontSize: '42px', color: '#0f172a', marginTop: '0', marginBottom: '20px', lineHeight: '1.1', fontWeight: '800' }}>
-            Termómetro de Preferencias Electorales
-          </h2>
-          <p style={{ fontSize: '18px', color: '#475569', lineHeight: '1.6', marginBottom: '20px' }}>
-            Participa en la medición de las tendencias políticas actuales. Selecciona el partido de tu preferencia y descubre cómo se mueve la intención de voto en tiempo real a través de nuestro dashboard de resultados. 
-          </p>
-          <p style={{ fontSize: '16px', color: '#64748b', lineHeight: '1.6', borderLeft: '4px solid #cbd5e1', paddingLeft: '15px', fontStyle: 'italic' }}>
-            Una vista clara y transparente del panorama general antes de adentrarnos en las elecciones municipales.
-          </p>
+          <div className="hidden md:flex gap-4">
+            <span className="px-4 py-1.5 bg-slate-100 text-slate-600 font-medium text-sm rounded-full border border-slate-200">
+              Elecciones Hidalgo 2027
+            </span>
+          </div>
         </div>
+      </header>
 
-        {/* COLUMNA DERECHA (La Tarjeta) */}
-        <div style={{ flex: '1 1 400px', width: '100%', maxWidth: '500px' }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
-            
-            {/* PANTALLA 1 */}
-            {paso === 1 && (
-              <section>
-                <h3 style={{ textAlign: 'center', color: '#1e293b', marginBottom: '25px', fontSize: '22px', marginTop: '0' }}>
-                  ¿Quién crees que gobernará?
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {PARTIDOS_HIDALGO.map((partido) => (
-                    <button 
-                      key={partido.id}
-                      onClick={() => manejarVoto(partido.id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
-                        width: '100%', padding: '12px 20px',
-                        border: `1px solid #cbd5e1`, borderLeft: `6px solid ${partido.color}`,
-                        borderRadius: '8px', backgroundColor: 'white', cursor: 'pointer',
-                        transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                    >
-                      <img src={partido.logo} alt={`Logo ${partido.nombre}`} style={{ width: '40px', height: '40px', objectFit: 'contain', marginRight: '15px' }} />
-                      <span style={{ fontSize: '16px', fontWeight: '600', color: '#334155' }}>{partido.nombre}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
+      {/* CONTENEDOR CENTRAL DE LAS PANTALLAS */}
+      <main className="max-w-5xl mx-auto px-6 pt-12">
 
-            {/* PANTALLA 2 */}
-            {paso === 2 && (
-              <section style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '40px', marginBottom: '10px' }}>📍</div>
-                <h3 style={{ color: '#1e293b', marginTop: '0' }}>Confirmar Zona Geográfica</h3>
-                <p style={{ color: '#64748b', marginBottom: '25px' }}>Ingresa el Código Postal de tu municipio para validar la muestra estadística.</p>
-                <input 
-                  type="text" maxLength="5" placeholder="Ej. 42000" value={cp}
-                  onChange={(e) => setCp(e.target.value.replace(/\D/g, ""))}
-                  style={{ padding: '15px', width: '80%', marginBottom: '25px', textAlign: 'center', fontSize: '20px', letterSpacing: '2px', border: '2px solid #e2e8f0', borderRadius: '8px', outline: 'none' }}
-                />
-                
-                {/* BOTÓN ACTUALIZADO QUE LLAMA A SUPABASE */}
-                <button 
-                  disabled={cp.length !== 5 || guardando}
-                  onClick={validarYGuardar}
-                  style={{
-                    width: '100%', padding: '15px', borderRadius: '8px', border: 'none',
-                    backgroundColor: (cp.length === 5 && !guardando) ? '#0f172a' : '#cbd5e1', 
-                    color: 'white', fontSize: '16px', fontWeight: 'bold',
-                    cursor: (cp.length === 5 && !guardando) ? 'pointer' : 'not-allowed',
-                  }}
+        {/* --- PANTALLA 1: SELECCIÓN DE PARTIDO --- */}
+        {paso === 1 && (
+          <section className="animate-fade-in text-center max-w-4xl mx-auto">
+            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 mb-4">
+              Barómetro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Preferencias</span>
+            </h2>
+            <p className="text-lg text-slate-500 mb-12 max-w-2xl mx-auto">
+              Participa en la primera medición descentralizada. Selecciona tu preferencia y descubre el pulso político en tiempo real.
+            </p>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {PARTIDOS_HIDALGO.map((partido) => (
+                <button
+                  key={partido.id}
+                  onClick={() => manejarVoto(partido.id)}
+                  className="group bg-white p-6 rounded-[2rem] shadow-sm hover:shadow-xl hover:-translate-y-2 border border-slate-100 transition-all duration-300 flex flex-col items-center gap-4 relative overflow-hidden"
                 >
-                  {guardando ? 'Guardando...' : 'Validar y Ver Resultados'}
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <img 
+                    src={partido.logo} 
+                    alt={partido.nombre} 
+                    className="w-20 h-20 object-contain relative z-10 transition-transform duration-300 group-hover:scale-110" 
+                  />
+                  <span className="font-bold text-slate-700 relative z-10">{partido.nombre}</span>
                 </button>
-              </section>
-            )}
-{/* PANTALLA 3 */}
-            {paso === 3 && (
-              <section style={{ textAlign: 'center' }}>
-                <h3 style={{ color: '#1e293b', marginBottom: '5px', marginTop: '0' }}>¡Registro Exitoso!</h3>
-                <div style={{ backgroundColor: '#ecfdf5', padding: '15px', borderRadius: '8px', border: '1px solid #10b981', display: 'inline-block', marginBottom: '30px', marginTop: '10px' }}>
-                  <span style={{ color: '#047857', fontWeight: 'bold', fontSize: '15px' }}>🪙 50 Quetza Coins abonadas</span>
-                </div>
-                
-                <div style={{ textAlign: 'left', marginBottom: '30px' }}>
-                  <h4 style={{ fontSize: '16px', color: '#475569', marginBottom: '15px', marginTop: '0' }}>Tendencia Regional:</h4>
-                  
-                  {/* 👇 AQUÍ EMPIEZA LA MAGIA DE SUPABASE 👇 */}
-                  {resultados.map((partido, index) => (
-                    <div key={index} style={{ marginBottom: '15px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold', color: '#1e293b' }}>
-                        <span>{partido.nombre}</span>
-                        <span>{partido.porcentaje}%</span>
-                      </div>
-                      <div style={{ width: '100%', backgroundColor: '#f1f5f9', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
-                        <div 
-                          style={{ 
-                            width: `${partido.porcentaje}%`, 
-                            backgroundColor: partido.color || '#475569', 
-                            height: '100%',
-                            transition: 'width 1s ease-in-out' // Esto le da la animación chula
-                          }}
-                        ></div>
+              ))}
+            </div>
+          </section>
+        )}
+
+{/* --- PANTALLA 2: CÓDIGO POSTAL --- */}
+        {paso === 2 && (
+          <section className="max-w-md mx-auto bg-white p-10 rounded-[2.5rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] relative overflow-hidden text-center animate-fade-in mt-10">
+             <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-6 shadow-inner">
+                📍
+             </div>
+             <h3 className="text-2xl font-bold text-slate-800 mb-2">Confirmar Zona Geográfica</h3>
+             <p className="text-slate-500 mb-8 text-sm">
+                Ingresa el Código Postal de tu municipio para validar la muestra estadística.
+             </p>
+
+             {/* --- INICIO DEL BUSCADOR INTELIGENTE --- */}
+             <div className="relative mb-8">
+               <input
+                  list="municipios-hidalgo"
+                  type="text"
+                  placeholder="Ej. 42000"
+                  value={cp}
+                  onChange={(e) => setCp(e.target.value)}
+                  className="w-full text-center text-3xl font-black text-slate-700 tracking-widest py-4 bg-slate-50 border-2 border-slate-200 rounded-full focus:outline-none focus:border-blue-500 focus:bg-white transition-all shadow-inner"
+                  maxLength="5"
+               />
+               
+               {/* Catálogo oculto que se activa al hacer clic */}
+               <datalist id="municipios-hidalgo">
+                  <option value="42000">Pachuca de Soto</option>
+                  <option value="42180">Mineral de la Reforma</option>
+                  <option value="43600">Tulancingo de Bravo</option>
+                  <option value="43800">Tizayuca</option>
+                  <option value="42800">Tula de Allende</option>
+                  <option value="42950">Tepeji del Río</option>
+                  <option value="43000">Huejutla de Reyes</option>
+                  <option value="42500">Actopan</option>
+                  <option value="42300">Ixmiquilpan</option>
+                  <option value="43900">Apan</option>
+                  <option value="43990">Tepeapulco</option>
+                  <option value="43070">Atlapexco</option>
+                  <option value="43040">Huautla</option>
+                  <option value="43030">Jaltocan</option>
+                  <option value="43050">San Felipe Orizatlan</option>
+                  <option value="43090">Xochiatipan</option>
+                  <option value="43020">Yahualica</option>
+                  <option value="43080">Calnali</option>
+                  <option value="43300">Atotonilco el Grande</option>
+                  <option value="43092">Acanoa,Atlalco,El Zapote,Hueyajtetl</option>
+               </datalist>
+
+               <p className="text-xs text-slate-400 mt-3 font-medium">
+                 💡 Escribe tu CP o haz clic en la caja para ver el catálogo.
+               </p>
+             </div>
+             {/* --- FIN DEL BUSCADOR INTELIGENTE --- */}
+
+             <button
+                onClick={validarYGuardar}
+                disabled={guardando || cp.length !== 5}
+                className={`w-full py-4 rounded-full font-bold text-lg transition-all duration-300 shadow-md ${
+                  guardando || cp.length !== 5 
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg hover:-translate-y-1 hover:shadow-blue-500/30'
+                }`}
+             >
+                {guardando ? 'Guardando en la red...' : 'Confirmar Voto'}
+             </button>
+             
+             <button 
+                onClick={() => setPaso(1)}
+                className="mt-6 text-sm font-medium text-slate-400 hover:text-slate-600 transition-colors"
+             >
+               ← Volver y cambiar partido
+             </button>
+          </section>
+        )}
+
+        {/* --- PANTALLA 3: RESULTADOS --- */}
+        {paso === 3 && (
+          <section className="max-w-2xl mx-auto bg-white rounded-[2.5rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] p-8 md:p-12 relative overflow-hidden animate-fade-in mt-4">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl -z-10 opacity-60 transform translate-x-1/2 -translate-y-1/2"></div>
+
+            <div className="text-center z-10 relative">
+              <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight mb-2">
+                ¡Pronóstico Registrado!
+              </h3>
+              <p className="text-slate-500 font-medium mb-8">
+                Tu voto ha sido procesado y guardado en la base de datos.
+              </p>
+
+              <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-3 rounded-full shadow-lg shadow-emerald-500/30 font-bold mb-10 transform hover:scale-105 transition-transform duration-300">
+                <span className="text-xl">🪙</span>
+                <span>+50 Quetza Coins abonadas</span>
+              </div>
+            </div>
+
+            <div className="text-left mb-10 relative z-10">
+              <h4 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                📊 Tendencia Regional en Tiempo Real
+              </h4>
+              
+              <div className="space-y-6">
+                {resultados.map((partido, index) => (
+                  <div key={index} className="group">
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="font-bold text-slate-700 text-lg group-hover:text-blue-600 transition-colors">
+                        {partido.nombre}
+                      </span>
+                      <span className="font-black text-slate-900 text-xl">
+                        {partido.porcentaje}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-5 rounded-full overflow-hidden shadow-inner">
+                      <div 
+                        className="h-full rounded-full transition-all duration-1000 ease-out relative"
+                        style={{ 
+                          width: `${partido.porcentaje}%`, 
+                          backgroundColor: partido.color || '#3b82f6'
+                        }}
+                      >
+                        <div className="absolute top-0 left-0 right-0 h-1/2 bg-white/20 rounded-full"></div>
                       </div>
                     </div>
-                  ))}
-                  {/* 👆 AQUÍ TERMINA LA MAGIA 👆 */}
+                  </div>
+                ))}
+              </div>
+            </div>
 
-                </div>
-                
-                <button 
-                  onClick={() => { setPaso(1); setCp(''); }}
-                  style={{ width: '100%', padding: '15px', backgroundColor: 'transparent', border: '2px solid #e2e8f0', color: '#475569', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                  Hacer otro pronóstico
-                </button>
-              </section>
-            )}
-
-          </div>
-        </div>
+            <button 
+              onClick={obtenerResultadosReales}
+              className="w-full py-4 bg-white border-2 border-slate-200 text-slate-600 font-bold text-lg rounded-full hover:border-blue-500 hover:text-blue-600 hover:shadow-md hover:-translate-y-1 transition-all duration-300 relative z-10 flex items-center justify-center gap-2"
+            >
+              <span>🔄</span> Actualizar resultados en tiempo real
+            </button>
+          </section>
+        )}
       </main>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
