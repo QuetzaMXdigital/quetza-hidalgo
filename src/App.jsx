@@ -1,6 +1,12 @@
 import { useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
 
-// --- 1. DEFINICIONES CON LOGOS LOCALES ---
+// --- 1. CONEXIÓN A LA BODEGA (SUPABASE) ---
+const supabaseUrl = 'https://iomgmssjcpkwhafxchzq.supabase.co'; 
+const supabaseKey = 'sb_publishable_w9lymjXrrcgJ8E7AAvjeOg_rH74Q9nM';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// --- 2. DEFINICIONES CON LOGOS LOCALES ---
 const PARTIDOS_HIDALGO = [
   { id: 'morena', nombre: 'MORENA', color: '#8d1c3d', logo: '/morena.png' },
   { id: 'pan', nombre: 'PAN', color: '#005596', logo: '/pan.png' },
@@ -11,19 +17,75 @@ const PARTIDOS_HIDALGO = [
 ];
 
 function App() {
+  const [resultados, setResultados] = useState([]);
   const [paso, setPaso] = useState(1);
   const [eleccion, setEleccion] = useState(null);
   const [cp, setCp] = useState('');
+  const [guardando, setGuardando] = useState(false); // Para mostrar un "Cargando..."
 
   const manejarVoto = (partidoId) => {
     setEleccion(partidoId);
     setPaso(2);
   };
 
+  /// --- 3. LA FUNCIÓN QUE MANDA LOS DATOS ---
+  const validarYGuardar = async () => {
+    setGuardando(true);
+    
+    // Guardamos en la tabla 'registro_votos'
+    const { error } = await supabase
+      .from('registro_votos')
+      .insert([{ partido: eleccion, cp: cp }]);
+
+    if (error) {
+      alert("Hubo un error al guardar tu voto.");
+      console.error(error);
+      setGuardando(false);
+    } else {
+      // SI TODO SALE BIEN: Primero traemos los resultados nuevos
+      await obtenerResultadosReales();
+      // Y luego pasamos a la pantalla final
+      setPaso(3);
+      setGuardando(false);
+    }
+  };
+
+  // --- 4. LA FUNCIÓN QUE LEE LOS RESULTADOS ---
+  const obtenerResultadosReales = async () => {
+    // IMPORTANTE: Usamos la misma tabla 'registro_votos'
+    const { data, error } = await supabase.from('registro_votos').select('partido');
+
+    if (error) {
+      console.error("Error al traer votos:", error);
+      return;
+    }
+
+    const totalVotos = data.length;
+    
+    // Contamos cuántos votos hay por cada ID de partido
+    const conteo = data.reduce((acc, voto) => {
+      acc[voto.partido] = (acc[voto.partido] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Creamos la lista para las gráficas
+    const calculoFinal = PARTIDOS_HIDALGO.map(partido => {
+      const votosEstePartido = conteo[partido.id] || 0;
+      const porcentaje = totalVotos > 0 ? ((votosEstePartido / totalVotos) * 100).toFixed(1) : 0;
+      
+      return {
+        ...partido,
+        porcentaje: porcentaje
+      };
+    });
+
+    // Ordenamos de mayor a menor
+    setResultados(calculoFinal.sort((a, b) => b.porcentaje - a.porcentaje));
+  };
+
   return (
     <div style={{ backgroundColor: '#e2e8f0', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       
-      {/* Barra de Navegación Superior */}
       <nav style={{ backgroundColor: '#0f172a', padding: '15px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
         <h1 style={{ color: 'white', margin: 0, fontSize: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '24px' }}>📊</span> Quetza Analytics
@@ -31,44 +93,34 @@ function App() {
         <span style={{ color: '#94a3b8', fontSize: '14px' }}>Hidalgo 2027</span>
       </nav>
 
-      {/* Contenedor Principal (Flexbox de Dos Columnas) */}
       <main style={{ padding: '40px 20px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '50px', maxWidth: '1200px', margin: '0 auto', alignItems: 'center', minHeight: 'calc(100vh - 70px)' }}>
         
-        {/* === COLUMNA IZQUIERDA: EL TEXTO PERSUASIVO === */}
+        {/* COLUMNA IZQUIERDA (Texto intacto) */}
         <div style={{ flex: '1 1 400px', padding: '20px' }}>
           <div style={{ display: 'inline-block', backgroundColor: '#e0e7ff', color: '#4f46e5', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 'bold', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '1px' }}>
             Rumbo al 2027
           </div>
-          
           <h2 style={{ fontSize: '42px', color: '#0f172a', marginTop: '0', marginBottom: '20px', lineHeight: '1.1', fontWeight: '800' }}>
             Termómetro de Preferencias Electorales
           </h2>
-          
           <p style={{ fontSize: '18px', color: '#475569', lineHeight: '1.6', marginBottom: '20px' }}>
             Participa en la medición de las tendencias políticas actuales. Selecciona el partido de tu preferencia y descubre cómo se mueve la intención de voto en tiempo real a través de nuestro dashboard de resultados. 
           </p>
-          
           <p style={{ fontSize: '16px', color: '#64748b', lineHeight: '1.6', borderLeft: '4px solid #cbd5e1', paddingLeft: '15px', fontStyle: 'italic' }}>
             Una vista clara y transparente del panorama general antes de adentrarnos en las elecciones municipales.
           </p>
         </div>
 
-        {/* === COLUMNA DERECHA: LA TARJETA INTERACTIVA === */}
+        {/* COLUMNA DERECHA (La Tarjeta) */}
         <div style={{ flex: '1 1 400px', width: '100%', maxWidth: '500px' }}>
-          <div style={{ 
-            backgroundColor: 'white', 
-            padding: '30px', 
-            borderRadius: '16px', 
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' 
-          }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
             
-            {/* PANTALLA 1: LA VOTACIÓN */}
+            {/* PANTALLA 1 */}
             {paso === 1 && (
               <section>
                 <h3 style={{ textAlign: 'center', color: '#1e293b', marginBottom: '25px', fontSize: '22px', marginTop: '0' }}>
-                  ¿Quién crees que tendrá la mayor preferencia?
+                  ¿Quién crees que gobernará?
                 </h3>
-                
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {PARTIDOS_HIDALGO.map((partido) => (
                     <button 
@@ -77,110 +129,85 @@ function App() {
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
                         width: '100%', padding: '12px 20px',
-                        border: `1px solid #cbd5e1`, 
-                        borderLeft: `6px solid ${partido.color}`,
-                        borderRadius: '8px',
-                        backgroundColor: 'white', cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                        border: `1px solid #cbd5e1`, borderLeft: `6px solid ${partido.color}`,
+                        borderRadius: '8px', backgroundColor: 'white', cursor: 'pointer',
+                        transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
                       }}
                       onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
                       onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
                     >
-                      <img 
-                        src={partido.logo} 
-                        alt={`Logo ${partido.nombre}`} 
-                        style={{ width: '40px', height: '40px', objectFit: 'contain', marginRight: '15px' }}
-                      />
-                      <span style={{ fontSize: '16px', fontWeight: '600', color: '#334155' }}>
-                        {partido.nombre}
-                      </span>
+                      <img src={partido.logo} alt={`Logo ${partido.nombre}`} style={{ width: '40px', height: '40px', objectFit: 'contain', marginRight: '15px' }} />
+                      <span style={{ fontSize: '16px', fontWeight: '600', color: '#334155' }}>{partido.nombre}</span>
                     </button>
                   ))}
                 </div>
               </section>
             )}
 
-            {/* PANTALLA 2: EL MURO DE VALIDACIÓN */}
+            {/* PANTALLA 2 */}
             {paso === 2 && (
               <section style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '40px', marginBottom: '10px' }}>📍</div>
                 <h3 style={{ color: '#1e293b', marginTop: '0' }}>Confirmar Zona Geográfica</h3>
-                <p style={{ color: '#64748b', marginBottom: '25px' }}>
-                  Ingresa el Código Postal de tu municipio para validar la muestra estadística.
-                </p>
-                
+                <p style={{ color: '#64748b', marginBottom: '25px' }}>Ingresa el Código Postal de tu municipio para validar la muestra estadística.</p>
                 <input 
-                  type="text" 
-                  maxLength="5"
-                  placeholder="Ej. 42000"
-                  value={cp}
+                  type="text" maxLength="5" placeholder="Ej. 42000" value={cp}
                   onChange={(e) => setCp(e.target.value.replace(/\D/g, ""))}
-                  style={{ 
-                    padding: '15px', width: '80%', marginBottom: '25px', 
-                    textAlign: 'center', fontSize: '20px', letterSpacing: '2px',
-                    border: '2px solid #e2e8f0', borderRadius: '8px', outline: 'none'
-                  }}
+                  style={{ padding: '15px', width: '80%', marginBottom: '25px', textAlign: 'center', fontSize: '20px', letterSpacing: '2px', border: '2px solid #e2e8f0', borderRadius: '8px', outline: 'none' }}
                 />
-
+                
+                {/* BOTÓN ACTUALIZADO QUE LLAMA A SUPABASE */}
                 <button 
-                  disabled={cp.length !== 5}
-                  onClick={() => setPaso(3)}
+                  disabled={cp.length !== 5 || guardando}
+                  onClick={validarYGuardar}
                   style={{
                     width: '100%', padding: '15px', borderRadius: '8px', border: 'none',
-                    backgroundColor: cp.length === 5 ? '#0f172a' : '#cbd5e1', 
+                    backgroundColor: (cp.length === 5 && !guardando) ? '#0f172a' : '#cbd5e1', 
                     color: 'white', fontSize: '16px', fontWeight: 'bold',
-                    cursor: cp.length === 5 ? 'pointer' : 'not-allowed',
-                    transition: 'background-color 0.3s'
+                    cursor: (cp.length === 5 && !guardando) ? 'pointer' : 'not-allowed',
                   }}
                 >
-                  Validar y Ver Resultados
+                  {guardando ? 'Guardando...' : 'Validar y Ver Resultados'}
                 </button>
               </section>
             )}
-
-            {/* PANTALLA 3: RESULTADOS / RECOMPENSA */}
+{/* PANTALLA 3 */}
             {paso === 3 && (
               <section style={{ textAlign: 'center' }}>
                 <h3 style={{ color: '#1e293b', marginBottom: '5px', marginTop: '0' }}>¡Registro Exitoso!</h3>
-                
                 <div style={{ backgroundColor: '#ecfdf5', padding: '15px', borderRadius: '8px', border: '1px solid #10b981', display: 'inline-block', marginBottom: '30px', marginTop: '10px' }}>
-                  <span style={{ color: '#047857', fontWeight: 'bold', fontSize: '15px' }}>
-                    🪙 50 Quetza Coins abonadas
-                  </span>
+                  <span style={{ color: '#047857', fontWeight: 'bold', fontSize: '15px' }}>🪙 50 Quetza Coins abonadas</span>
                 </div>
                 
                 <div style={{ textAlign: 'left', marginBottom: '30px' }}>
                   <h4 style={{ fontSize: '16px', color: '#475569', marginBottom: '15px', marginTop: '0' }}>Tendencia Regional:</h4>
                   
-                  <div style={{ marginBottom: '15px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold', color: '#1e293b' }}>
-                      <span>MORENA</span>
-                      <span>42%</span>
+                  {/* 👇 AQUÍ EMPIEZA LA MAGIA DE SUPABASE 👇 */}
+                  {resultados.map((partido, index) => (
+                    <div key={index} style={{ marginBottom: '15px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold', color: '#1e293b' }}>
+                        <span>{partido.nombre}</span>
+                        <span>{partido.porcentaje}%</span>
+                      </div>
+                      <div style={{ width: '100%', backgroundColor: '#f1f5f9', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
+                        <div 
+                          style={{ 
+                            width: `${partido.porcentaje}%`, 
+                            backgroundColor: partido.color || '#475569', 
+                            height: '100%',
+                            transition: 'width 1s ease-in-out' // Esto le da la animación chula
+                          }}
+                        ></div>
+                      </div>
                     </div>
-                    <div style={{ width: '100%', backgroundColor: '#f1f5f9', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{ width: '42%', backgroundColor: '#8d1c3d', height: '100%' }}></div>
-                    </div>
-                  </div>
+                  ))}
+                  {/* 👆 AQUÍ TERMINA LA MAGIA 👆 */}
 
-                  <div style={{ marginBottom: '15px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px', fontWeight: 'bold', color: '#1e293b' }}>
-                      <span>PRI</span>
-                      <span>28%</span>
-                    </div>
-                    <div style={{ width: '100%', backgroundColor: '#f1f5f9', height: '12px', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{ width: '28%', backgroundColor: '#00955d', height: '100%' }}></div>
-                    </div>
-                  </div>
                 </div>
-
+                
                 <button 
                   onClick={() => { setPaso(1); setCp(''); }}
-                  style={{
-                    width: '100%', padding: '15px', backgroundColor: 'transparent',
-                    border: '2px solid #e2e8f0', color: '#475569',
-                    borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
-                  }}
+                  style={{ width: '100%', padding: '15px', backgroundColor: 'transparent', border: '2px solid #e2e8f0', color: '#475569', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
                 >
                   Hacer otro pronóstico
                 </button>
